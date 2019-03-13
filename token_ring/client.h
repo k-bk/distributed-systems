@@ -14,12 +14,12 @@
 
 typedef struct input
 {
-    int has_token;
-    int protocol;
+    char ID [32];
+    char local_port [10];
     char next_IP [32];
     char next_port [10];
-    char local_port [10];
-    char ID [32];
+    int has_token;
+    int protocol;
 } input;
 
 
@@ -37,20 +37,22 @@ typedef struct token_init
     char from_ID [32];
     char to_ID [32];   // should be empty here
     char type;
-    char my_IP [20];   // checks if next_IP == my_IP
-    char my_port [10];
+    char source_IP [20];
+    char source_port [10];
     char new_IP [20];
     char new_port [10];
 } token_init;
 
-void parse_command_line( const int argc, const char** argv, input* in );
-
-int new_socket( const char* host_IP, const char* host_port );
-void close_socket( int socket );
+void parse_command_line( const int argc, const char** argv );
 
 struct addrinfo* get_address_info( const char* host_IP, const char* host_port );
-void set_sigaction();
-
 void* get_in_addr( struct sockaddr* sa );
+int new_socket( const char* host_IP, const char* host_port );
+
+void token_send( int sockfd, token* message );
+void token_queue_send( int sockfd );
+void token_receive( int sockfd, token* buffer );
+void token_pass( int sockfd, token* message );
+
 
 #endif

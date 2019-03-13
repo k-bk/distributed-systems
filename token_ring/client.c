@@ -15,60 +15,77 @@
 
 #include "client.h"
 
+token free_message;
 token queued_message;
 int queue_full = 0;
 static pthread_mutex_t queue_lock = PTHREAD_MUTEX_INITIALIZER;
 
+input this;
+
+int socket_in;
+int socket_out;
+
 
 void* receive_loop( void* arg )
 {
-    input* in = ( input* ) arg;
-    while ( 1 ) {
-        if ( queue_full )
-        {
-            printf( "new message in queue!\n" );
-            printf( "  to: '%s'\n  msg: '%s'\n", queued_message.to_ID,
-                    queued_message.message );
+    token received_message;
+    token_init* init;
 
-            pthread_mutex_lock( &queue_lock );
-            queue_full = 0;
-            pthread_mutex_unlock( &queue_lock );
-        }
-    }
-    /*
-    while ( 1 )
+    while ( 1 ) 
     {
-        //accept( sockfd, 
-        sin_size = sizeof their_addr;
-        new_fd = accept( 
-                sockfd, ( struct sockaddr* )&their_addr, &sin_size );
-        if ( new_fd == -1 )
-        {
-            perror( "accept" );
-            continue;
-        }
+        token_receive( socket_in, &received_message );
+        sleep( 1 );
 
-        inet_ntop( their_addr.ss_family,
-                get_in_addr( ( struct sockaddr* )&their_addr ),
-                s, sizeof s);
-        printf( "%s: got connection from %s\n", in.ID, s );
-        if ( !fork() )
+        switch ( received_message.type )
         {
-            close( sockfd );
-            if ( send( new_fd, "Hello, world!", 13, 0 ) == -1 )
-                perror( "send" );
-            close( new_fd );
-            exit( 0 );
+            case TOKEN_INIT:
+                init = ( token_init* )&received_message;
+                if ( strcmp( this.next_IP, init->source_IP ) == 0 )
+                {
+                    strcpy( this.next_IP, init->new_IP );
+                    strcpy( this.next_port, init->new_port );
+
+                    close( socket_out );
+                    socket_out = new_socket( this.next_IP, this.next_port );
+
+                    token_queue_send( socket_out );
+                }
+                else
+                {
+                    token_pass( socket_out, &received_message );
+                }
+                break;
+
+            case TOKEN_MSG: 
+                if ( strcmp( this.ID, received_message.to_ID ) == 0 ) 
+                {
+                    printf( "-- MESSAGE --\n" );
+                    printf( " from: '%s'\n", received_message.from_ID );
+                    printf( " message: '%s'\n", received_message.message );
+                    printf( "-------------\n" );
+
+                    token_queue_send( socket_out );
+                } 
+                else
+                {
+                    printf( "-- TOKEN --\n" );
+                    printf( " from: '%s'\n", received_message.from_ID ); 
+                    printf( " to: '%s'\n", received_message.to_ID ); 
+                    printf( "-----------\n" );
+                    token_pass( socket_out, &received_message );
+                }
+                break;
+
+            case TOKEN_FREE:
+                token_queue_send( socket_out );
+                break;
         }
-        close( new_fd );
     }
-    */
 }
 
 
 void* read_input_loop( void* arg )
 {
-    input* in = ( input* ) arg;
     char message [100];
     char destination [100];
     sleep( 2 );
@@ -93,37 +110,35 @@ void* read_input_loop( void* arg )
 
 int main( const int argc, const char** argv )
 {
-
-    int sockfd;
-    input in;
-    token buffer;
     pthread_t receiver;
-    
-    parse_command_line( argc, argv, &in );
-
-    printf( "%s: opening socket...\n", in.ID );
-    sockfd = new_socket( "", in.local_port );
-
-    set_sigaction();
-    printf( "%s: waiting for connections...\n", in.ID );
-
     int status;
-    status = pthread_create( &receiver, NULL, receive_loop, &in );
-    err( status != 0, "%s: can't create thread\n", in.ID );
 
-    read_input_loop( &in );
+    memset( &free_message, 0, sizeof free_message );
+    free_message.type = TOKEN_FREE;
+
+    parse_command_line( argc, argv );
+
+    printf( "%s: opening input socket...\n", this.ID );
+    socket_in = new_socket( "", this.local_port );
+
+    printf( "%s: opening output socket...\n", this.ID );
+    socket_out = new_socket( this.next_IP, this.next_port );
+
+    status = pthread_create( &receiver, NULL, receive_loop, NULL );
+    err( status != 0, "%s: can't create thread\n", this.ID );
+    read_input_loop( NULL );
+
     return 0;
 }
 
 
-int new_socket( const char* host_IP, const char* host_port )
+int new_socket( const char* IP, const char* port )
 {
     struct addrinfo* srvinfo;
     struct addrinfo* p;
-    int yes = 1;
     int sockfd;
 
-    srvinfo = get_address_info( host_IP, host_port );
+    srvinfo = get_address_info( IP, port );
 
     // bind to the first result possible
     for ( p = srvinfo; p != NULL; p = p->ai_next ) 
@@ -145,7 +160,6 @@ int new_socket( const char* host_IP, const char* host_port )
         break;
     }
     err ( p == NULL, "new_socket: failed to bind\n" );
-    err ( listen( sockfd, MAX_CONNECTIONS ) == -1, "new_socket: listen\n" );
     
     freeaddrinfo( srvinfo );
 
@@ -153,7 +167,7 @@ int new_socket( const char* host_IP, const char* host_port )
 }
 
 
-struct addrinfo* get_address_info( const char* host_IP, const char* host_port ) 
+struct addrinfo* get_address_info( const char* IP, const char* port ) 
 {
     struct addrinfo hints;
     struct addrinfo* srvinfo;
@@ -162,35 +176,20 @@ struct addrinfo* get_address_info( const char* host_IP, const char* host_port )
     memset( &hints, 0, sizeof hints );
     hints.ai_family = AF_UNSPEC;        // both v4 and v6 work
     hints.ai_socktype = SOCK_STREAM;
-    if ( host_IP == NULL || strlen( host_IP ) == 0 )
+
+    if ( IP == NULL || strlen( IP ) == 0 )
     {
         hints.ai_flags = AI_PASSIVE;        // fill in my IP for me
-        host_IP = NULL;
+        status = getaddrinfo( NULL, port, &hints, &srvinfo );
+    }
+    else
+    {
+        status = getaddrinfo( IP, port, &hints, &srvinfo );
     }
 
-    status = getaddrinfo( host_IP, host_port, &hints, &srvinfo );
     err( status != 0, "getaddrinfo: %s\n", gai_strerror( status ) );
 
     return srvinfo;
-}
-
-
-void sigchld_handler(int s)
-{
-    // waitpid() might overwrite errno, so we save and restore it:
-    int saved_errno = errno;
-    while ( waitpid( -1, NULL, WNOHANG ) > 0 );
-    errno = saved_errno;
-}
-
-
-void set_sigaction()
-{
-    struct sigaction sa;
-    sa.sa_handler = sigchld_handler;
-    sigemptyset( &sa.sa_mask );
-    sa.sa_flags = SA_RESTART;
-    err( sigaction( SIGCHLD, &sa, NULL ) == -1, "set_sigaction\n" );
 }
 
 
@@ -200,7 +199,7 @@ void token_receive( int sockfd, token* buffer )
     numbytes = recv( sockfd, buffer, MAX_DATA_SIZE, 0 );
     if ( numbytes == -1 )
     {
-        perror( "main: receive\n" );
+        perror( "token_receive: recv\n" );
     }
     printf( "  src: %s\n", buffer->from_ID );
     printf( "  dest: %s\n", buffer->to_ID );
@@ -209,14 +208,33 @@ void token_receive( int sockfd, token* buffer )
 }
 
 
-void token_send( int sockfd )
+void token_queue_send( int sockfd )
 {
+    if ( queue_full )
+    {
+        token_send( sockfd, &queued_message );
+        pthread_mutex_lock( &queue_lock );
+        queue_full = 0;
+        pthread_mutex_unlock( &queue_lock );
+    }
+    else
+    {
+        token_send( sockfd, &free_message );
+    }
 }
 
 
-void close_socket( int socket )
+void token_send( int sockfd, token* message )
 {
-    close( socket );
+    strcpy( message->from_ID, this.ID );
+    message->type = TOKEN_MSG;
+    send( sockfd, message, sizeof message, 0 );
+}
+
+
+void token_pass( int sockfd, token* message )
+{
+    send( sockfd, message, sizeof message, 0 );
 }
 
 
@@ -232,23 +250,23 @@ void* get_in_addr( struct sockaddr* sa )
 }
 
 
-void parse_command_line( const int argc, const char** argv, input* in )
+void parse_command_line( const int argc, const char** argv )
 {
     err( argc != 7, "usage: uID uPort neighIP neighPort hasToken tcp|udp\n" );
     err( strlen( argv[1] ) >= 64, "userID: too long (max 64).\n" );
 
-    strcpy( in->ID, argv[1] );
-    strcpy( in->local_port, argv[2] );
-    strcpy( in->next_IP, argv[3] );
-    strcpy( in->next_port, argv[4] );
+    strcpy( this.ID, argv[1] );
+    strcpy( this.local_port, argv[2] );
+    strcpy( this.next_IP, argv[3] );
+    strcpy( this.next_port, argv[4] );
 
     if ( strcasecmp( argv[5], "true" ) == 0 )  
-        in->has_token = 1;
+        this.has_token = 1;
     else if ( strcasecmp( argv[5], "false" ) == 0 ) 
-        in->has_token = 0;
+        this.has_token = 0;
 
     if ( strcasecmp( argv[6], "tcp" ) == 0 ) 
-        in->protocol = TCP;
+        this.protocol = TCP;
     else if ( strcasecmp( argv[6], "udp" ) == 0 ) 
-        in->protocol = UDP;
+        this.protocol = UDP;
 }
