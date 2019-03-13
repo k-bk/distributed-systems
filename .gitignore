@@ -1,3 +1,9 @@
+# Tmp files
+*.swp
+
+# CTags
+*tags
+
 # Prerequisites
 *.d
 
