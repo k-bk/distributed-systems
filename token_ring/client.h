@@ -1,12 +1,23 @@
 #ifndef TOKENRING_CLIENT_H
 #define TOKENRING_CLIENT_H
 
+#define TCP 0
+#define UDP 1
+#define TOKEN_FREE 0
+#define TOKEN_INIT 1
+#define TOKEN_MSG  2
+#define MAX_CONNECTIONS 10
+#define MAX_DATA_SIZE 500
+#define err( cond, args... ) if ( cond ) { \
+    fprintf( stderr, args ); exit( EXIT_FAILURE ); }
+
+
 typedef struct input
 {
     int has_token;
     int protocol;
-    char neighbour_IP [32];
-    char neighbour_port [10];
+    char next_IP [32];
+    char next_port [10];
     char local_port [10];
     char ID [32];
 } input;
@@ -14,11 +25,23 @@ typedef struct input
 
 typedef struct token
 {
-    char t_src [30];
-    char t_dest [30];
-    char t_type;
-    char data [MAX_DATA_SIZE - 62];
-}
+    char from_ID [32];
+    char to_ID [32];
+    char type;
+    char message [63];
+} token;
+
+
+typedef struct token_init
+{
+    char from_ID [32];
+    char to_ID [32];   // should be empty here
+    char type;
+    char my_IP [20];   // checks if next_IP == my_IP
+    char my_port [10];
+    char new_IP [20];
+    char new_port [10];
+} token_init;
 
 void parse_command_line( const int argc, const char** argv, input* in );
 

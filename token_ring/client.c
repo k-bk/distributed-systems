@@ -11,37 +11,34 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #include "client.h"
 
-#define TCP 0
-#define UDP 1
-#define MAX_CONNECTIONS 10
-#define MAX_DATA_SIZE 500
-#define err( cond, args... ) if ( cond ) { \
-    fprintf( stderr, args ); exit( EXIT_FAILURE ); }
+token queued_message;
+int queue_full = 0;
+static pthread_mutex_t queue_lock = PTHREAD_MUTEX_INITIALIZER;
 
 
-int main( const int argc, const char** argv )
+void* receive_loop( void* arg )
 {
-    int sockfd;
-    int new_fd;
-    int numbytes;
-    char buffer [MAX_DATA_SIZE + 1];
-    input in;
-    socklen_t sin_size;
-    struct sockaddr_storage their_addr;
-    char s[INET6_ADDRSTRLEN];
-    
-    parse_command_line( argc, argv, &in );
+    input* in = ( input* ) arg;
+    while ( 1 ) {
+        if ( queue_full )
+        {
+            printf( "new message in queue!\n" );
+            printf( "  to: '%s'\n  msg: '%s'\n", queued_message.to_ID,
+                    queued_message.message );
 
-    printf( "%s: opening socket...\n", in.ID );
-    sockfd = new_socket( in.neighbour_IP, in.local_port );
-
-    printf( "%s: waiting for connections...\n", in.ID );
-
+            pthread_mutex_lock( &queue_lock );
+            queue_full = 0;
+            pthread_mutex_unlock( &queue_lock );
+        }
+    }
+    /*
     while ( 1 )
     {
+        //accept( sockfd, 
         sin_size = sizeof their_addr;
         new_fd = accept( 
                 sockfd, ( struct sockaddr* )&their_addr, &sin_size );
@@ -65,11 +62,56 @@ int main( const int argc, const char** argv )
         }
         close( new_fd );
     }
+    */
+}
 
-    printf( "%s: received '%s'\n", in.ID, buffer );
 
-    printf( "%s: closing socket...\n", in.ID );
-    close_socket( sockfd );
+void* read_input_loop( void* arg )
+{
+    input* in = ( input* ) arg;
+    char message [100];
+    char destination [100];
+    sleep( 2 );
+
+    while( 1 )
+    {
+        while ( queue_full ) ;
+
+        printf( "> to: " );
+        scanf( " %99[^\n]", destination );
+        printf( "> message: " );
+        scanf( " %99[^\n]", message );
+        strcpy( queued_message.to_ID, destination );
+        strcpy( queued_message.message, message );
+
+        pthread_mutex_lock( &queue_lock );
+        queue_full = 1;
+        pthread_mutex_unlock( &queue_lock );
+    }
+}
+
+
+int main( const int argc, const char** argv )
+{
+
+    int sockfd;
+    input in;
+    token buffer;
+    pthread_t receiver;
+    
+    parse_command_line( argc, argv, &in );
+
+    printf( "%s: opening socket...\n", in.ID );
+    sockfd = new_socket( "", in.local_port );
+
+    set_sigaction();
+    printf( "%s: waiting for connections...\n", in.ID );
+
+    int status;
+    status = pthread_create( &receiver, NULL, receive_loop, &in );
+    err( status != 0, "%s: can't create thread\n", in.ID );
+
+    read_input_loop( &in );
     return 0;
 }
 
@@ -93,10 +135,6 @@ int new_socket( const char* host_IP, const char* host_port )
             continue;
         }
 
-        if ( setsockopt( sockfd, SOL_SOCKET, SO_REUSEADDR, 
-                    &yes, sizeof yes ) )
-            perror( "new_socket: setsockopt" );
-
         if ( bind( sockfd, p->ai_addr, p->ai_addrlen ) == -1 ) 
         {
             close( sockfd );
@@ -108,10 +146,8 @@ int new_socket( const char* host_IP, const char* host_port )
     }
     err ( p == NULL, "new_socket: failed to bind\n" );
     err ( listen( sockfd, MAX_CONNECTIONS ) == -1, "new_socket: listen\n" );
-
+    
     freeaddrinfo( srvinfo );
-
-    set_sigaction();
 
     return sockfd;
 }
@@ -158,7 +194,7 @@ void set_sigaction()
 }
 
 
-void receive( int sockfd, token* buffer )
+void token_receive( int sockfd, token* buffer )
 {
     int numbytes;
     numbytes = recv( sockfd, buffer, MAX_DATA_SIZE, 0 );
@@ -166,11 +202,14 @@ void receive( int sockfd, token* buffer )
     {
         perror( "main: receive\n" );
     }
-    buffer[numbytes] = '\0';
+    printf( "  src: %s\n", buffer->from_ID );
+    printf( "  dest: %s\n", buffer->to_ID );
+    printf( "  type: %s\n", buffer->type );
+    printf( "  data: %s\n", buffer->message );
 }
 
 
-void send( int sockfd,  )
+void token_send( int sockfd )
 {
 }
 
@@ -200,7 +239,8 @@ void parse_command_line( const int argc, const char** argv, input* in )
 
     strcpy( in->ID, argv[1] );
     strcpy( in->local_port, argv[2] );
-    strcpy( in->neighbour_port, argv[3] );
+    strcpy( in->next_IP, argv[3] );
+    strcpy( in->next_port, argv[4] );
 
     if ( strcasecmp( argv[5], "true" ) == 0 )  
         in->has_token = 1;

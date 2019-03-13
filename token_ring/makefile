@@ -1,11 +1,12 @@
 CC = gcc
 OBJECTS = client.o
 BINARY = client
+FLAGS = -pthread
 
 all: client
 
 client: $(OBJECTS)
-	$(CC) $(OBJECTS) -o $(BINARY)
+	$(CC) $(OBJECTS) -o $(BINARY) $(FLAGS)
 
 test: all
 	./client XYZ 2001 200.0.0.1 4000 false tcp
