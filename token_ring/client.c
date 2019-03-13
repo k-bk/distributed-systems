@@ -36,10 +36,22 @@ void* receive_loop( void* arg )
         token_receive( socket_in, &received_message );
         sleep( 1 );
 
+        printf( "Got token. What to do now?\n" );
+
         switch ( received_message.type )
         {
             case TOKEN_INIT:
                 init = ( token_init* )&received_message;
+                printf( "-- INIT --\n" );
+                printf( " new: '%s'\n", init->new_IP );
+                printf( " connected to: '%s'\n", init->source_IP );
+                printf( "----------\n" );
+
+                if ( strlen( init->new_IP ) == 0 )
+                {
+                    printf( "I am the connection point" );
+                }
+
                 if ( strcmp( this.next_IP, init->source_IP ) == 0 )
                 {
                     strcpy( this.next_IP, init->new_IP );
@@ -47,8 +59,6 @@ void* receive_loop( void* arg )
 
                     close( socket_out );
                     socket_out = new_socket( this.next_IP, this.next_port );
-
-                    token_queue_send( socket_out );
                 }
                 else
                 {
@@ -126,6 +136,23 @@ int main( const int argc, const char** argv )
 
     status = pthread_create( &receiver, NULL, receive_loop, NULL );
     err( status != 0, "%s: can't create thread\n", this.ID );
+
+    if ( this.has_token )
+    {
+        token_send( socket_in, &free_message );
+    }
+    else 
+    {
+        token_init init;
+        memset( &init, 0, sizeof init );
+        init.type = TOKEN_INIT;
+        strcpy( init.from_ID, this.ID );
+        strcpy( init.source_IP, this.next_IP );
+        strcpy( init.source_port, this.next_port );
+        strcpy( init.new_port, this.local_port );
+        token_send( socket_out, ( token* )&init );
+    }
+
     read_input_loop( NULL );
 
     return 0;
@@ -150,11 +177,14 @@ int new_socket( const char* IP, const char* port )
             continue;
         }
 
-        if ( bind( sockfd, p->ai_addr, p->ai_addrlen ) == -1 ) 
+        if ( p->ai_socktype == SOCK_STREAM )
         {
-            close( sockfd );
-            perror( "new_socket: bind" );
-            continue;
+            if ( bind( sockfd, p->ai_addr, p->ai_addrlen ) == -1 ) 
+            {
+                close( sockfd );
+                perror( "new_socket: bind" );
+                continue;
+            }
         }
 
         break;
@@ -175,7 +205,7 @@ struct addrinfo* get_address_info( const char* IP, const char* port )
 
     memset( &hints, 0, sizeof hints );
     hints.ai_family = AF_UNSPEC;        // both v4 and v6 work
-    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_socktype = this.protocol;
 
     if ( IP == NULL || strlen( IP ) == 0 )
     {
@@ -196,11 +226,22 @@ struct addrinfo* get_address_info( const char* IP, const char* port )
 void token_receive( int sockfd, token* buffer )
 {
     int numbytes;
-    numbytes = recv( sockfd, buffer, MAX_DATA_SIZE, 0 );
+    struct sockaddr_storage their_addr;
+    socklen_t addrlen = sizeof their_addr;
+    char string_IP[INET6_ADDRSTRLEN];
+
+    numbytes = recvfrom( sockfd, buffer, MAX_DATA_SIZE, 0, 
+            ( struct sockaddr* )&their_addr, &addrlen );
     if ( numbytes == -1 )
     {
         perror( "token_receive: recv\n" );
     }
+
+    inet_ntop( their_addr.ss_family,
+            get_in_addr( ( struct sockaddr* )&their_addr ),
+            string_IP, sizeof string_IP );
+
+    printf( "  IP: %s\n", string_IP );
     printf( "  src: %s\n", buffer->from_ID );
     printf( "  dest: %s\n", buffer->to_ID );
     printf( "  type: %s\n", buffer->type );
@@ -212,6 +253,7 @@ void token_queue_send( int sockfd )
 {
     if ( queue_full )
     {
+        queued_message.type = TOKEN_MSG;
         token_send( sockfd, &queued_message );
         pthread_mutex_lock( &queue_lock );
         queue_full = 0;
@@ -226,9 +268,13 @@ void token_queue_send( int sockfd )
 
 void token_send( int sockfd, token* message )
 {
-    strcpy( message->from_ID, this.ID );
-    message->type = TOKEN_MSG;
-    send( sockfd, message, sizeof message, 0 );
+    struct addrinfo* srvinfo;
+    srvinfo = get_address_info( this.next_IP, this.next_port );
+    printf( "i am sending token\n" );
+    printf( "to ip: %s port: %s\n", this.next_IP, this.next_port );
+
+    sendto( sockfd, message, sizeof message, 0, 
+            srvinfo->ai_addr, srvinfo->ai_addrlen );
 }
 
 
@@ -266,7 +312,7 @@ void parse_command_line( const int argc, const char** argv )
         this.has_token = 0;
 
     if ( strcasecmp( argv[6], "tcp" ) == 0 ) 
-        this.protocol = TCP;
+        this.protocol = SOCK_STREAM;
     else if ( strcasecmp( argv[6], "udp" ) == 0 ) 
-        this.protocol = UDP;
+        this.protocol = SOCK_DGRAM;
 }
