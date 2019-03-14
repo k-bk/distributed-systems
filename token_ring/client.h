@@ -9,6 +9,7 @@
 #define MAX_CONNECTIONS 10
 #define MAX_DATA_SIZE 500
 #define MAX_TTL 10
+#define MAX_HUNGER 5
 #define err( cond, args... ) if ( cond ) { \
     fprintf( stderr, args ); exit( EXIT_FAILURE ); }
 

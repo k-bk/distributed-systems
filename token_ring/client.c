@@ -18,6 +18,7 @@
 token free_message;
 token queued_message;
 int queue_full = 0;
+int queue_repeat = 1;
 static pthread_mutex_t queue_lock = PTHREAD_MUTEX_INITIALIZER;
 
 input this;
@@ -30,6 +31,7 @@ void* receive_loop( void* arg )
 {
     token received_message;
     token_init* init;
+    int hunger = 0;
 
     while ( 1 ) 
     {
@@ -63,19 +65,27 @@ void* receive_loop( void* arg )
                 break;
 
             case TOKEN_MSG: 
+
+                if ( queue_full )
+                {
+                    hunger++;
+                }
+
                 if ( strcmp( this.ID, received_message.to_ID ) == 0 ) 
                 {
+
                     printf( "\n-- MESSAGE --\n" );
                     printf( " from: '%s'\n", received_message.from_ID );
                     printf( " message: '%s'\n", received_message.message );
                     printf( "-------------\n" );
                     printf( "> " );
-
                     token_queue_send( socket_out );
+                    hunger = 0;
                 } 
                 else if ( strcmp( this.ID, received_message.from_ID ) == 0 )
                 {
                     token_send_free( socket_out );
+                    hunger = 0;
                 }
                 else
                 {
@@ -85,7 +95,17 @@ void* receive_loop( void* arg )
                     printf( " TTL: %d\n", received_message.TTL ); 
                     printf( "-----------\n" );
                     printf( "> " );
-                    token_send( socket_out, &received_message );
+
+                    if ( hunger >= MAX_HUNGER )
+                    {
+                        token_send( socket_out, &queued_message );
+                        memcpy( &queued_message, &received_message, sizeof( token ) );
+                        hunger = 0;
+                    }
+                    else
+                    {
+                        token_send( socket_out, &received_message );
+                    }
                 }
                 break;
 
@@ -108,9 +128,15 @@ void* read_input_loop( void* arg )
         while ( queue_full ) ;
 
         printf( "> " );
+
+        if ( scanf( " %d ", &queue_repeat ) == 0 )
+            queue_repeat = 1;
+
         scanf( " %99[^: ] : %99[^\n]", destination, message );
         strcpy( queued_message.from_ID, this.ID );
         strcpy( queued_message.to_ID, destination );
+        queued_message.type = TOKEN_MSG;
+        queued_message.TTL = MAX_TTL;
         strcpy( queued_message.message, message );
 
         pthread_mutex_lock( &queue_lock );
@@ -253,12 +279,15 @@ void token_queue_send( int sockfd )
 {
     if ( queue_full )
     {
-        queued_message.type = TOKEN_MSG;
         queued_message.TTL = MAX_TTL;
         token_send( sockfd, &queued_message );
-        pthread_mutex_lock( &queue_lock );
-        queue_full = 0;
-        pthread_mutex_unlock( &queue_lock );
+        queue_repeat -= 1;
+        if ( queue_repeat <= 0 )
+        {
+            pthread_mutex_lock( &queue_lock );
+            queue_full = 0;
+            pthread_mutex_unlock( &queue_lock );
+        }
     }
     else
     {
