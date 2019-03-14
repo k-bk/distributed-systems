@@ -46,7 +46,6 @@ void* receive_loop( void* arg )
                 printf( " new: %s:%s\n", init->new_IP, init->new_port );
                 printf( " connected to: %s:%s\n", init->source_IP, init->source_port );
                 printf( " my neighbour: %s:%s\n", this.next_IP, this.next_port );
-                printf( "----------\n" );
                 printf( "> " );
 
                 if ( strcmp( this.next_IP, init->source_IP ) == 0 && 
@@ -74,10 +73,8 @@ void* receive_loop( void* arg )
                 if ( strcmp( this.ID, received_message.to_ID ) == 0 ) 
                 {
 
-                    printf( "\n-- MESSAGE --\n" );
-                    printf( " from: '%s'\n", received_message.from_ID );
-                    printf( " message: '%s'\n", received_message.message );
-                    printf( "-------------\n" );
+                    printf( "%s <- %s: ", this.ID, received_message.from_ID );
+                    printf( "%s\n", received_message.message );
                     printf( "> " );
                     token_queue_send( socket_out );
                     hunger = 0;
@@ -89,11 +86,9 @@ void* receive_loop( void* arg )
                 }
                 else
                 {
-                    printf( "\n-- TOKEN --\n" );
-                    printf( " from: '%s'\n", received_message.from_ID ); 
-                    printf( " to: '%s'\n", received_message.to_ID ); 
-                    printf( " TTL: %d\n", received_message.TTL ); 
-                    printf( "-----------\n" );
+                    printf( "%s <- ", received_message.to_ID ); 
+                    printf( "%s ", received_message.from_ID ); 
+                    printf( "(%d)\n", received_message.TTL ); 
                     printf( "> " );
 
                     if ( hunger >= MAX_HUNGER )
