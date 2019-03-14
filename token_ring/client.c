@@ -25,6 +25,11 @@ input this;
 
 int socket_in;
 int socket_out;
+int socket_multicast;
+
+
+const char* multicast_IP = "224.0.0.42";
+const char* multicast_port = "1919";
 
 
 void* receive_loop( void* arg )
@@ -157,6 +162,9 @@ int main( const int argc, const char** argv )
 
     printf( "%s: opening output socket...\n", this.ID );
     socket_out = new_socket( this.next_IP, this.next_port );
+
+    printf( "%s: opening multicast socket...\n", this.ID );
+    socket_multicast = new_socket( multicast_IP, multicast_port );
 
     if ( this.has_token )
     {
@@ -339,6 +347,19 @@ void token_print( token* msg )
     printf( "  TTL: %d\n", msg->TTL );
     printf( "  data: %s\n", msg->message );
     printf( "> " );
+}
+
+
+void token_send_multicast( token* msg )
+{
+    struct addrinfo* srvinfo;
+    char message [300];
+
+    srvinfo = get_address_info( multicast_IP, multicast_port );
+    sprintf( message, "ID: %s | %s -> %s | %d | %d | %s\n",
+            this.ID, msg->from_ID, msg->to_ID, msg->type, msg->TTL, msg->message );
+    sendto( socket_multicast, message, sizeof( message ), 0, 
+            srvinfo->ai_addr, srvinfo->ai_addrlen );
 }
 
 

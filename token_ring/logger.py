@@ -7,20 +7,24 @@ import sys
 
 
 filename = "log.txt"
-if len( sys.argv ) > 1:
+if len(sys.argv) > 1:
     filename = sys.argv[1] 
 
-file = open( filename, "a+" );
+file = open(filename, "a+")
 data = []
 
-logger_ip = "224.0.0.42"
-logger_port = 1919
+LOGGER_IP = "224.0.0.42"
+LOGGER_PORT = 1919
 
-logger = socket.socket( socket.AF_INET, socket.SOCK_DGRAM );
-logger.bind( ( logger_ip, logger_port ) );
+logger = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+logger.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+logger.bind((LOGGER_IP, LOGGER_PORT))
+
+mreq = struct.pack("4sl", socket.inet_aton(LOGGER_IP), socket.INADDR_ANY)
+sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 
 while True:
-    data, addr = logger.recvfrom( 1024 )
-    timestamp = str( datetime.datetime.now() )
-    print( timestamp + " : " + data.decode( 'utf-8' ) )
-    file.write( timestamp + " : " + data.decode( 'utf-8' ) )
+    data = logger.recv(1024)
+    timestamp = str(datetime.datetime.now())
+    print(timestamp + " : " + data.decode('utf-8'))
+    file.write(timestamp + " : " + data.decode('utf-8'))
