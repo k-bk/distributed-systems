@@ -36,7 +36,6 @@ void* receive_loop( void* arg )
     while ( 1 ) 
     {
         token_receive( socket_in, &received_message );
-        sleep( 1 );
 
         switch ( received_message.type )
         {
@@ -64,6 +63,7 @@ void* receive_loop( void* arg )
                 break;
 
             case TOKEN_MSG: 
+                sleep( 1 );
 
                 if ( queue_full )
                 {
@@ -105,6 +105,8 @@ void* receive_loop( void* arg )
                 break;
 
             case TOKEN_FREE:
+                sleep( 1 );
+
                 token_queue_send( socket_out );
                 break;
         }
