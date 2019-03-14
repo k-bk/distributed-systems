@@ -3,11 +3,12 @@
 
 #define TCP 0
 #define UDP 1
-#define TOKEN_FREE 0
-#define TOKEN_INIT 1
-#define TOKEN_MSG  2
+#define TOKEN_FREE 3
+#define TOKEN_INIT 4
+#define TOKEN_MSG  5
 #define MAX_CONNECTIONS 10
 #define MAX_DATA_SIZE 500
+#define MAX_TTL 10
 #define err( cond, args... ) if ( cond ) { \
     fprintf( stderr, args ); exit( EXIT_FAILURE ); }
 
@@ -27,8 +28,9 @@ typedef struct token
 {
     char from_ID [32];
     char to_ID [32];
-    char type;
-    char message [63];
+    int type;
+    int TTL;
+    char message [60];
 } token;
 
 
@@ -36,7 +38,8 @@ typedef struct token_init
 {
     char from_ID [32];
     char to_ID [32];   // should be empty here
-    char type;
+    int type;
+    int TTL;
     char source_IP [20];
     char source_port [10];
     char new_IP [20];
@@ -53,6 +56,10 @@ void token_send( int sockfd, token* message );
 void token_queue_send( int sockfd );
 void token_receive( int sockfd, token* buffer );
 void token_pass( int sockfd, token* message );
+void token_print( token* msg );
+void token_send_free( int sockfd );
+
+void get_IP_string( struct sockaddr* sa, char* buffer );
 
 
 #endif
