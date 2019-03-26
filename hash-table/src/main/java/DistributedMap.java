@@ -1,9 +1,4 @@
 import org.jgroups.*;
-import org.jgroups.protocols.*;
-import org.jgroups.protocols.pbcast.GMS;
-import org.jgroups.protocols.pbcast.NAKACK2;
-import org.jgroups.protocols.pbcast.STABLE;
-import org.jgroups.stack.ProtocolStack;
 import org.jgroups.util.Util;
 
 import java.io.DataInputStream;
@@ -60,17 +55,19 @@ public class DistributedMap extends ReceiverAdapter implements SimpleStringMap {
         }
 
         public void run() {
-            List<View> subgroups = view.getSubgroups();
-            View tmp_view = subgroups.get(0);
+            View tmp_view = view.getSubgroups().get(0);
             Address local_address = channel.getAddress();
             if(!tmp_view.getMembers().contains(local_address)) {
-                System.out.println("  reacquiring the state...\n >");
+                System.out.println("  not member of the new primary partition (" + tmp_view
+                        + "), will reacquire the state\n >");
                 try {
-                    channel.getState(null, 0);
-                } catch (Exception e) {
+                    channel.getState(null, 3000);
+                } catch (Exception ignored) {
+                    // ignored
                 }
             } else {
-                System.out.println("  no need to reacquire the state...\n >");
+                System.out.println("  not member of the new primary partition (" + tmp_view
+                        + "), will do nothing\n >");
             }
         }
     }
