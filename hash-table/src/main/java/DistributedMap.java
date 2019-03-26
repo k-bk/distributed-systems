@@ -1,5 +1,7 @@
 import org.jgroups.JChannel;
+import org.jgroups.Message;
 import org.jgroups.ReceiverAdapter;
+import org.jgroups.View;
 import org.jgroups.protocols.*;
 import org.jgroups.protocols.pbcast.GMS;
 import org.jgroups.protocols.pbcast.NAKACK2;
@@ -18,32 +20,31 @@ public class DistributedMap extends ReceiverAdapter implements SimpleStringMap {
 
     private final Map<String, Integer> map;
     private JChannel channel;
+    private final String cluster_name;
 
     public DistributedMap(String cluster_name) throws Exception {
-        map = new HashMap<>();
-        channel = new JChannel(false);
-
-        ProtocolStack stack = new ProtocolStack();
-        channel.setProtocolStack(stack);
-        stack
-                .addProtocol(new UDP())
-                .addProtocol(new PING())
-                .addProtocol(new MERGE3())
-                .addProtocol(new FD_SOCK())
-                .addProtocol(new FD_ALL().setValue("timeout", 12000).setValue("interval", 3000))
-                .addProtocol(new VERIFY_SUSPECT())
-                .addProtocol(new BARRIER())
-                .addProtocol(new NAKACK2())
-                .addProtocol(new UNICAST3())
-                .addProtocol(new STABLE())
-                .addProtocol(new GMS())
-                .addProtocol(new UFC())
-                .addProtocol(new MFC())
-                .addProtocol(new FRAG2());
-        stack.init();
-
-        System.out.println(" connecting to a channel...");
+        this.map = new HashMap<>();
+        this.cluster_name = cluster_name;
+        channel = new JChannel();
+        channel.setReceiver(this);
         channel.connect(cluster_name, null, 0);
+    }
+
+    public void receive(Message msg) {
+        String line = (String) msg.getObject();
+        String[] tokens = line.split(" ");
+        switch (tokens[0]) {
+            case "put":
+                map.put(tokens[1], Integer.parseInt(tokens[2]));
+                break;
+            case "remove":
+                map.remove(tokens[1]);
+                break;
+        }
+    }
+
+    public void viewAcepted(View new_view) {
+        System.out.println("** view: " + new_view);
     }
 
     public void delete() {
@@ -62,6 +63,10 @@ public class DistributedMap extends ReceiverAdapter implements SimpleStringMap {
         synchronized(map) {
             map.clear();
             map.putAll(new_map);
+        }
+        System.out.println(" " + map.size() + " entries in a hash map:");
+        for (Map.Entry<String, Integer> e : map.entrySet()) {
+            System.out.println("  " + e.getKey() + " : " + e.getValue());
         }
     }
 
@@ -83,7 +88,7 @@ public class DistributedMap extends ReceiverAdapter implements SimpleStringMap {
     public void put(String key, Integer value) {
         synchronized (map) {
             map.put(key, value);
-            channel.getState();
+            send("put " + key + " " + value);
         }
     }
 
@@ -92,9 +97,18 @@ public class DistributedMap extends ReceiverAdapter implements SimpleStringMap {
         synchronized (map) {
             Integer result =  map.remove(key);
             if (result != null) {
-                channel.getState();
+                send("remove " + key);
             }
             return result;
+        }
+    }
+
+    private void send(String message) {
+        try {
+            channel.send(new Message(null, null, message));
+        } catch (Exception e) {
+            System.out.println("  error: unable to send.");
+            e.printStackTrace();
         }
     }
 }
