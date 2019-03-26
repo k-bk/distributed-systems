@@ -59,15 +59,15 @@ public class DistributedMap extends ReceiverAdapter implements SimpleStringMap {
             Address local_address = channel.getAddress();
             if(!tmp_view.getMembers().contains(local_address)) {
                 System.out.println("  not member of the new primary partition (" + tmp_view
-                        + "), will reacquire the state\n >");
+                        + "), will reacquire the state\n> ");
                 try {
                     channel.getState(null, 0);
                 } catch (Exception ignored) {
                     // ignored
                 }
             } else {
-                System.out.println("  not member of the new primary partition (" + tmp_view
-                        + "), will do nothing\n >");
+                System.out.println("  member of the new primary partition (" + tmp_view
+                        + "), will do nothing\n> ");
             }
         }
     }
