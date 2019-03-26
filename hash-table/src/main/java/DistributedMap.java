@@ -93,6 +93,10 @@ public class DistributedMap extends ReceiverAdapter implements SimpleStringMap {
             map.clear();
             map.putAll(new_map);
         }
+        printAll();
+    }
+
+    public void printAll() {
         System.out.println(" " + map.size() + " entries in a hash map:");
         for (Map.Entry<String, Integer> e : map.entrySet()) {
             System.out.println("  " + e.getKey() + " : " + e.getValue());

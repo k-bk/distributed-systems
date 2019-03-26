@@ -16,8 +16,8 @@ public class Client {
         while (running) {
             System.out.print("> ");
             System.out.flush();
-            String line = in.readLine().toLowerCase();
-            String[] tokens = line.split(" ");
+            String line = in.readLine();
+            String[] tokens = line.split("\\s+");
             switch(tokens[0]) {
                 case "exit":
                 case "quit":
@@ -26,6 +26,9 @@ public class Client {
                 case "get":
                     Integer val = map.get(tokens[1]);
                     System.out.println("  " + val);
+                    break;
+                case "getAll":
+                    map.printAll();
                     break;
                 case "put":
                     map.put(tokens[1], Integer.parseInt(tokens[2]));
