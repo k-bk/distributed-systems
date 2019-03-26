@@ -15,6 +15,7 @@
 
 #include "client.h"
 
+
 token free_message;
 token queued_message;
 int queue_full = 0;
@@ -41,6 +42,7 @@ void* receive_loop( void* arg )
     while ( 1 ) 
     {
         token_receive( socket_in, &received_message );
+        token_send_multicast( &received_message );
 
         switch ( received_message.type )
         {
@@ -356,9 +358,9 @@ void token_send_multicast( token* msg )
     char message [300];
 
     srvinfo = get_address_info( multicast_IP, multicast_port );
-    sprintf( message, "ID: %s | %s -> %s | %d | %d | %s\n",
+    sprintf( message, "ID: %s, %s -> %s, %d, %d, %s",
             this.ID, msg->from_ID, msg->to_ID, msg->type, msg->TTL, msg->message );
-    sendto( socket_multicast, message, sizeof( message ), 0, 
+    sendto( socket_multicast, message, strlen( message ), 0, 
             srvinfo->ai_addr, srvinfo->ai_addrlen );
 }
 

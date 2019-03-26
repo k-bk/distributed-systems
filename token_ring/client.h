@@ -59,6 +59,7 @@ void token_receive( int sockfd, token* buffer );
 void token_pass( int sockfd, token* message );
 void token_print( token* msg );
 void token_send_free( int sockfd );
+void token_send_multicast( token* msg );
 
 void get_IP_string( struct sockaddr* sa, char* buffer );
 
