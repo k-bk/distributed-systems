@@ -1,7 +1,4 @@
-import org.jgroups.JChannel;
-import org.jgroups.Message;
-import org.jgroups.ReceiverAdapter;
-import org.jgroups.View;
+import org.jgroups.*;
 import org.jgroups.protocols.*;
 import org.jgroups.protocols.pbcast.GMS;
 import org.jgroups.protocols.pbcast.NAKACK2;
@@ -14,6 +11,7 @@ import java.io.DataOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class DistributedMap extends ReceiverAdapter implements SimpleStringMap {
@@ -33,18 +31,49 @@ public class DistributedMap extends ReceiverAdapter implements SimpleStringMap {
     public void receive(Message msg) {
         String line = (String) msg.getObject();
         String[] tokens = line.split(" ");
-        switch (tokens[0]) {
-            case "put":
-                map.put(tokens[1], Integer.parseInt(tokens[2]));
-                break;
-            case "remove":
-                map.remove(tokens[1]);
-                break;
+        synchronized (map) {
+            switch (tokens[0]) {
+                case "put":
+                    map.put(tokens[1], Integer.parseInt(tokens[2]));
+                    break;
+                case "remove":
+                    map.remove(tokens[1]);
+                    break;
+            }
         }
     }
 
-    public void viewAcepted(View new_view) {
-        System.out.println("** view: " + new_view);
+    public void viewAcepted(View view) {
+        if (view instanceof MergeView) {
+            ViewHandler handler  = new ViewHandler(channel, (MergeView) view);
+            handler.start();
+        }
+    }
+
+    private static class ViewHandler extends Thread {
+        JChannel channel;
+        MergeView view;
+
+        private ViewHandler(JChannel channel, MergeView view) {
+            this.channel = channel;
+            this.view = view;
+        }
+
+        public void run() {
+            List<View> subgroups = view.getSubgroups();
+            View tmp_view = subgroups.get(0);
+            Address local_address = channel.getAddress();
+            if(!tmp_view.getMembers().contains(local_address)) {
+                System.out.println("  reacquiring the state...");
+                try {
+                    channel.getState(null, 0);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            } else {
+                System.out.println("  no need to reacquire the state...");
+            }
+        }
     }
 
     public void delete() {
