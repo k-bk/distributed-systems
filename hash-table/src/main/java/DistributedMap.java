@@ -64,13 +64,13 @@ public class DistributedMap extends ReceiverAdapter implements SimpleStringMap {
             View tmp_view = subgroups.get(0);
             Address local_address = channel.getAddress();
             if(!tmp_view.getMembers().contains(local_address)) {
-                System.out.println("  reacquiring the state...");
+                System.out.println("  reacquiring the state...\n >");
                 try {
                     channel.getState(null, 0);
                 } catch (Exception e) {
                 }
             } else {
-                System.out.println("  no need to reacquire the state...");
+                System.out.println("  no need to reacquire the state...\n >");
             }
         }
     }

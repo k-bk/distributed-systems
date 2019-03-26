@@ -18,7 +18,9 @@ public class Client {
             System.out.flush();
             String line = in.readLine();
             String[] tokens = line.split("\\s+");
-            switch(tokens[0]) {
+            if (tokens.length < 1) continue;
+
+            switch (tokens[0]) {
                 case "exit":
                 case "quit":
                     running = false;
@@ -40,6 +42,8 @@ public class Client {
                     break;
                 case "remove":
                     map.remove(tokens[1]);
+                    break;
+                case "":
                     break;
                 default:
                     System.out.println("  error: unknown operation.");
