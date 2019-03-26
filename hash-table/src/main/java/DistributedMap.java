@@ -43,7 +43,7 @@ public class DistributedMap extends ReceiverAdapter implements SimpleStringMap {
         }
     }
 
-    public void viewAcepted(View view) {
+    public void viewAccepted(View view) {
         if (view instanceof MergeView) {
             ViewHandler handler  = new ViewHandler(channel, (MergeView) view);
             handler.start();
@@ -68,7 +68,6 @@ public class DistributedMap extends ReceiverAdapter implements SimpleStringMap {
                 try {
                     channel.getState(null, 0);
                 } catch (Exception e) {
-                    e.printStackTrace();
                 }
             } else {
                 System.out.println("  no need to reacquire the state...");
@@ -141,7 +140,6 @@ public class DistributedMap extends ReceiverAdapter implements SimpleStringMap {
             channel.send(new Message(null, null, message));
         } catch (Exception e) {
             System.out.println("  error: unable to send.");
-            e.printStackTrace();
         }
     }
 }
