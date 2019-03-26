@@ -61,7 +61,7 @@ public class DistributedMap extends ReceiverAdapter implements SimpleStringMap {
                 System.out.println("  not member of the new primary partition (" + tmp_view
                         + "), will reacquire the state\n >");
                 try {
-                    channel.getState(null, 3000);
+                    channel.getState(null, 0);
                 } catch (Exception ignored) {
                     // ignored
                 }
