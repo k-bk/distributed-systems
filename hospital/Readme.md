@@ -1,6 +1,6 @@
 # Szpital
 
-## Scenariusz: Obsługujemy oddział ortopedyczny w szpitalu
+Scenariusz: Obsługujemy oddział ortopedyczny w szpitalu
 
 Mamy 3 typy użytkowników:
 * Lekarz (zleca badania, dostaje wyniki).
@@ -25,7 +25,8 @@ Szpital przyjmuje pacjentów z kontuzjami: biodra (hip), kolana (knee) lub łokc
 * Loguje całą aktywność (dostaje kopie wszystkich wiadomości – zleceń oraz odpowiedzi)
 * Ma możliwość przesłania wiadomości (info) do wszystkich
 
-## Zadanie - diagram
+![Diagram systemu](homework_diagram.png)
+
 Proszę przygotować rysunek ze schematem (użytkownicy, exchange, kolejki, wiadomości)
 Schemat musi być przygotowany w wersji elektronicznej (skan rysunku nie jest dozwolony)
 Scenariusz testowy:
