@@ -7,7 +7,7 @@ import java.net.InetAddress;
 public class Client {
 
     public static void main(String[] args) throws Exception {
-        new UDP().setValue("mcast_group_addr", InetAddress.getByName("230.100.200.0"));
+        new UDP().setValue("mcast_group_addr", InetAddress.getByName("230.0.2.15"));
 
         DistributedMap map = new DistributedMap("OperationChannel");
 

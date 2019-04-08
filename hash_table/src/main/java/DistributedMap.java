@@ -1,4 +1,7 @@
 import org.jgroups.*;
+import org.jgroups.protocols.*;
+import org.jgroups.protocols.pbcast.*;
+import org.jgroups.stack.ProtocolStack;
 import org.jgroups.util.Util;
 
 import java.io.DataInputStream;
@@ -6,7 +9,6 @@ import java.io.DataOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 public class DistributedMap extends ReceiverAdapter implements SimpleStringMap {
@@ -18,7 +20,30 @@ public class DistributedMap extends ReceiverAdapter implements SimpleStringMap {
     public DistributedMap(String cluster_name) throws Exception {
         this.map = new HashMap<>();
         this.cluster_name = cluster_name;
-        channel = new JChannel();
+        channel = new JChannel(false);
+
+        ProtocolStack stack = new ProtocolStack();
+        channel.setProtocolStack(stack);
+        stack
+                .addProtocol(new UDP())
+                .addProtocol(new PING())
+                .addProtocol(new MERGE3())
+                .addProtocol(new FD_SOCK())
+                .addProtocol(new FD_ALL().setValue("timeout", 12000).setValue("interval", 3000))
+                .addProtocol(new VERIFY_SUSPECT())
+                .addProtocol(new BARRIER())
+                .addProtocol(new NAKACK2())
+                .addProtocol(new UNICAST3())
+                .addProtocol(new STABLE())
+                .addProtocol(new GMS())
+                .addProtocol(new UFC())
+                .addProtocol(new MFC())
+                .addProtocol(new FRAG2())
+                .addProtocol(new STATE_TRANSFER())
+                .addProtocol(new DISCARD())
+                .addProtocol(new FLUSH());
+
+        stack.init();
         channel.setReceiver(this);
         channel.connect(cluster_name, null, 0);
     }
@@ -58,16 +83,15 @@ public class DistributedMap extends ReceiverAdapter implements SimpleStringMap {
             View tmp_view = view.getSubgroups().get(0);
             Address local_address = channel.getAddress();
             if(!tmp_view.getMembers().contains(local_address)) {
-                System.out.println("  not member of the new primary partition (" + tmp_view
-                        + "), will reacquire the state\n> ");
+                System.out.println("\n  merge: not coordinator, reacquiring the state (" + tmp_view + ")\n");
                 try {
-                    channel.getState(null, 0);
+                    channel.getState(null, 3000);
+
                 } catch (Exception ignored) {
                     // ignored
                 }
             } else {
-                System.out.println("  member of the new primary partition (" + tmp_view
-                        + "), will do nothing\n> ");
+                System.out.println("\n  merge: coordinator, do nothing (" + tmp_view + ")\n");
             }
         }
     }
